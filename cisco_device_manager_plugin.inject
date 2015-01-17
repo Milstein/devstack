@@ -2,8 +2,8 @@
 [cisco_hosting_device_credential:1]
 name="Universal credential"
 description="Credential used for all hosting devices"
-user_name=admin
-password=cisco123
+user_name=stack
+password=cisco
 type=
 
 [hosting_devices_templates]
@@ -60,7 +60,7 @@ plugging_driver=neutron.plugins.cisco.device_manager.plugging_drivers.hw_n1kv_vl
 
 [hosting_devices]
 [cisco_hosting_device:3]
-template_id=1
+template_id=3
 credentials_id=1
 device_id=SN:abcd1234efgh
 admin_state_up=True
