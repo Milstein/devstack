@@ -71,6 +71,7 @@ KEYSTONE_ASSIGNMENT_BACKEND=${KEYSTONE_ASSIGNMENT_BACKEND:-sql}
 
 # Select Keystone's token format
 # Choose from 'UUID', 'PKI', or 'PKIZ'
+KEYSTONE_TOKEN_FORMAT=${KEYSTONE_TOKEN_FORMAT:-}
 KEYSTONE_TOKEN_FORMAT=$(echo ${KEYSTONE_TOKEN_FORMAT} | tr '[:upper:]' '[:lower:]')
 
 # Set Keystone interface configuration
@@ -105,6 +106,10 @@ fi
 # complete URIs
 KEYSTONE_AUTH_URI=${KEYSTONE_AUTH_PROTOCOL}://${KEYSTONE_AUTH_HOST}:${KEYSTONE_AUTH_PORT}
 KEYSTONE_SERVICE_URI=${KEYSTONE_SERVICE_PROTOCOL}://${KEYSTONE_SERVICE_HOST}:${KEYSTONE_SERVICE_PORT}
+
+# V3 URIs
+KEYSTONE_AUTH_URI_V3=$KEYSTONE_AUTH_URI/v3
+KEYSTONE_SERVICE_URI_V3=$KEYSTONE_SERVICE_URI/v3
 
 # Functions
 # ---------
@@ -394,6 +399,9 @@ function create_keystone_accounts {
     get_or_add_user_role $another_role $demo_user $demo_tenant
     get_or_add_user_role $member_role $demo_user $invis_tenant
 
+    get_or_create_group "developers" "default" "openstack developers"
+    get_or_create_group "testers" "default"
+
     # Keystone
     if [[ "$KEYSTONE_CATALOG_BACKEND" = 'sql' ]]; then
 
@@ -405,15 +413,6 @@ function create_keystone_accounts {
             "$KEYSTONE_AUTH_PROTOCOL://$KEYSTONE_AUTH_HOST:$KEYSTONE_AUTH_PORT/v$IDENTITY_API_VERSION" \
             "$KEYSTONE_SERVICE_PROTOCOL://$KEYSTONE_SERVICE_HOST:$KEYSTONE_SERVICE_PORT/v$IDENTITY_API_VERSION"
     fi
-}
-
-# Configure the API version for the OpenStack projects.
-# configure_API_version conf_file version [section]
-function configure_API_version {
-    local conf_file=$1
-    local api_version=$2
-    local section=${3:-keystone_authtoken}
-    iniset $conf_file $section auth_uri $KEYSTONE_SERVICE_PROTOCOL://$KEYSTONE_SERVICE_HOST:$KEYSTONE_SERVICE_PORT/v$api_version
 }
 
 # Configure the service to use the auth token middleware.
@@ -429,15 +428,16 @@ function configure_auth_token_middleware {
     local signing_dir=$3
     local section=${4:-keystone_authtoken}
 
-    iniset $conf_file $section auth_host $KEYSTONE_AUTH_HOST
-    iniset $conf_file $section auth_port $KEYSTONE_AUTH_PORT
-    iniset $conf_file $section auth_protocol $KEYSTONE_AUTH_PROTOCOL
-    iniset $conf_file $section identity_uri $KEYSTONE_AUTH_URI
+    iniset $conf_file $section auth_plugin password
+    iniset $conf_file $section auth_url $KEYSTONE_AUTH_URI
+    iniset $conf_file $section username $admin_user
+    iniset $conf_file $section password $SERVICE_PASSWORD
+    iniset $conf_file $section user_domain_id default
+    iniset $conf_file $section project_name $SERVICE_TENANT_NAME
+    iniset $conf_file $section project_domain_id default
+
+    iniset $conf_file $section auth_uri $KEYSTONE_SERVICE_URI
     iniset $conf_file $section cafile $SSL_BUNDLE_FILE
-    configure_API_version $conf_file $IDENTITY_API_VERSION $section
-    iniset $conf_file $section admin_tenant_name $SERVICE_TENANT_NAME
-    iniset $conf_file $section admin_user $admin_user
-    iniset $conf_file $section admin_password $SERVICE_PASSWORD
     iniset $conf_file $section signing_dir $signing_dir
 }
 
@@ -448,7 +448,7 @@ function init_keystone {
     fi
 
     # (Re)create keystone database
-    recreate_database keystone utf8
+    recreate_database keystone
 
     # Initialize keystone database
     $KEYSTONE_DIR/bin/keystone-manage db_sync

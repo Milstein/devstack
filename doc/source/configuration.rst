@@ -200,22 +200,19 @@ Enable Logging
 
         LOG_COLOR=False
 
-Logging the Screen Output
--------------------------
+Logging the Service Output
+--------------------------
 
-    | *Default: ``SCREEN_LOGDIR=""``*
-    |  By default DevStack runs the OpenStack services using ``screen``
-       which is useful for watching log and debug output. However, in
-       automated testing the interactive ``screen`` sessions may not be
-       available after the fact; setting ``SCREEN_LOGDIR`` enables logging
-       of the ``screen`` sessions in the specified directory. There will be
-       one file per ``screen`` session named for the session name and a
-       timestamp.
+    | *Default: ``LOGDIR=""``*
+    |  DevStack will log the stdout output of the services it starts.
+       When using ``screen`` this logs the output in the screen windows
+       to a file.  Without ``screen`` this simply redirects stdout of
+       the service process to a file in ``LOGDIR``.
     |
 
     ::
 
-        SCREEN_LOGDIR=$DEST/logs/screen
+        LOGDIR=$DEST/logs
 
     *Note the use of ``DEST`` to locate the main install directory; this
     is why we suggest setting it in ``local.conf``.*
@@ -352,19 +349,6 @@ Multi-host DevStack
         GLANCE_HOSTPORT=w.x.y.z:9292
         ENABLED_SERVICES=n-vol,n-cpu,n-net,n-api
 
-API rate limits
----------------
-
-    | Default: ``API_RATE_LIMIT=True``
-    | Integration tests such as Tempest will likely run afoul of the
-      default rate limits configured for Nova. Turn off rate limiting
-      during testing by setting ``API_RATE_LIMIT=False``.*
-    |
-
-    ::
-
-        API_RATE_LIMIT=False
-
 IP Version
     | Default: ``IP_VERSION=4``
     | This setting can be used to configure DevStack to create either an IPv4,
@@ -413,8 +397,8 @@ Examples
        FIXED_RANGE=10.254.1.0/24
        NETWORK_GATEWAY=10.254.1.1
        LOGDAYS=1
-       LOGFILE=$DEST/logs/stack.sh.log
-       SCREEN_LOGDIR=$DEST/logs/screen
+       LOGDIR=$DEST/logs
+       LOGFILE=$LOGDIR/stack.sh.log
        ADMIN_PASSWORD=quiet
        DATABASE_PASSWORD=$ADMIN_PASSWORD
        RABBIT_PASSWORD=$ADMIN_PASSWORD

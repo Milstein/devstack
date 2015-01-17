@@ -75,10 +75,13 @@ CEILOMETER_BACKEND=${CEILOMETER_BACKEND:-mysql}
 CEILOMETER_SERVICE_PROTOCOL=http
 CEILOMETER_SERVICE_HOST=$SERVICE_HOST
 CEILOMETER_SERVICE_PORT=${CEILOMETER_SERVICE_PORT:-8777}
-CEILOMETER_USE_MOD_WSGI=$(trueorfalse False $CEILOMETER_USE_MOD_WSGI)
+CEILOMETER_USE_MOD_WSGI=$(trueorfalse False CEILOMETER_USE_MOD_WSGI)
 
 # To enable OSprofiler change value of this variable to "notifications,profiler"
 CEILOMETER_NOTIFICATION_TOPICS=${CEILOMETER_NOTIFICATION_TOPICS:-notifications}
+
+CEILOMETER_COORDINATION_URL=${CEILOMETER_COORDINATION_URL:-}
+CEILOMETER_PIPELINE_INTERVAL=${CEILOMETER_PIPELINE_INTERVAL:-}
 
 # Tell Tempest this project is present
 TEMPEST_SERVICES+=,ceilometer
@@ -200,6 +203,8 @@ function configure_ceilometer {
     iniset $CEILOMETER_CONF service_credentials os_username ceilometer
     iniset $CEILOMETER_CONF service_credentials os_password $SERVICE_PASSWORD
     iniset $CEILOMETER_CONF service_credentials os_tenant_name $SERVICE_TENANT_NAME
+    iniset $CEILOMETER_CONF service_credentials os_region_name $REGION_NAME
+    iniset $CEILOMETER_CONF service_credentials os_auth_url $KEYSTONE_SERVICE_URI/v2.0
 
     configure_auth_token_middleware $CEILOMETER_CONF ceilometer $CEILOMETER_AUTH_CACHE_DIR
 
@@ -262,7 +267,7 @@ function init_ceilometer {
 
     if is_service_enabled mysql postgresql; then
         if [ "$CEILOMETER_BACKEND" = 'mysql' ] || [ "$CEILOMETER_BACKEND" = 'postgresql' ] ; then
-            recreate_database ceilometer utf8
+            recreate_database ceilometer
             $CEILOMETER_BIN_DIR/ceilometer-dbsync
         fi
     fi
