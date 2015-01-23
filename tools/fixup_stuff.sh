@@ -85,7 +85,7 @@ function get_package_path {
 
 # Fix prettytable 0.7.2 permissions
 # Don't specify --upgrade so we use the existing package if present
-pip_install 'prettytable>0.7'
+pip_install 'prettytable>=0.7'
 PACKAGE_DIR=$(get_package_path prettytable)
 # Only fix version 0.7.2
 dir=$(echo $PACKAGE_DIR/prettytable-0.7.2*)
@@ -111,8 +111,8 @@ if is_fedora; then
     fi
 
     FORCE_FIREWALLD=$(trueorfalse False $FORCE_FIREWALLD)
-    if [[ ${DISTRO} =~ (f19|f20) && $FORCE_FIREWALLD == "False" ]]; then
-        # On Fedora 19 and 20 firewalld interacts badly with libvirt and
+    if [[ ${DISTRO} =~ (f20) && $FORCE_FIREWALLD == "False" ]]; then
+        # On Fedora 20 firewalld interacts badly with libvirt and
         # slows things down significantly.  However, for those cases
         # where that combination is desired, allow this fix to be skipped.
 

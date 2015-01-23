@@ -14,38 +14,52 @@ set +o xtrace
 
 register_database mysql
 
+# Linux distros, thank you for being incredibly consistent
+MYSQL=mysql
+if is_fedora; then
+    if [[ $DISTRO =~ (rhel6) ]]; then
+        MYSQL=mysqld
+    else
+        MYSQL=mariadb
+    fi
+fi
 
 # Functions
 # ---------
 
 # Get rid of everything enough to cleanly change database backends
 function cleanup_database_mysql {
+    stop_service $MYSQL
     if is_ubuntu; then
         # Get ruthless with mysql
         stop_service $MYSQL
-        apt_get purge -y mysql*
+        apt_get purge -y mysql* mariadb*
         sudo rm -rf /var/lib/mysql
         sudo rm -rf /etc/mysql
         return
     elif is_fedora; then
         if [[ $DISTRO =~ (rhel6) ]]; then
-            MYSQL=mysqld
+            stop_service mysqld
+            uninstall_package mysql-server
+            sudo rm -rf /var/lib/mysql
         else
-            MYSQL=mariadb
+            stop_service mariadb
+            uninstall_package mariadb-server
+            sudo rm -rf /var/lib/mysql
         fi
     elif is_suse; then
-        MYSQL=mysql
+        stop_service mysql
+        uninstall_package mysql-community-server
+        sudo rm -rf /var/lib/mysql
     else
         return
     fi
-    stop_service $MYSQL
 }
 
 function recreate_database_mysql {
     local db=$1
-    local charset=$2
     mysql -u$DATABASE_USER -p$DATABASE_PASSWORD -h$MYSQL_HOST -e "DROP DATABASE IF EXISTS $db;"
-    mysql -u$DATABASE_USER -p$DATABASE_PASSWORD -h$MYSQL_HOST -e "CREATE DATABASE $db CHARACTER SET $charset;"
+    mysql -u$DATABASE_USER -p$DATABASE_PASSWORD -h$MYSQL_HOST -e "CREATE DATABASE $db CHARACTER SET utf8;"
 }
 
 function configure_database_mysql {
@@ -123,10 +137,10 @@ function install_database_mysql {
     if is_ubuntu; then
         # Seed configuration with mysql password so that apt-get install doesn't
         # prompt us for a password upon install.
-        cat <<MYSQL_PRESEED | sudo debconf-set-selections
-mysql-server-5.1 mysql-server/root_password password $DATABASE_PASSWORD
-mysql-server-5.1 mysql-server/root_password_again password $DATABASE_PASSWORD
-mysql-server-5.1 mysql-server/start_on_boot boolean true
+        sudo debconf-set-selections <<MYSQL_PRESEED
+mysql-server mysql-server/root_password password $DATABASE_PASSWORD
+mysql-server mysql-server/root_password_again password $DATABASE_PASSWORD
+mysql-server mysql-server/start_on_boot boolean true
 MYSQL_PRESEED
     fi
 

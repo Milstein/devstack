@@ -82,7 +82,7 @@ SWIFT_EXTRAS_MIDDLEWARE=${SWIFT_EXTRAS_MIDDLEWARE:-formpost staticweb}
 
 # Set ``SWIFT_EXTRAS_MIDDLEWARE_LAST`` to extras middlewares that need to be at
 # the end of the pipeline.
-SWIFT_EXTRAS_MIDDLEWARE_LAST=${SWIFT_EXTRAS_MIDDLEWARE_LAST}
+SWIFT_EXTRAS_MIDDLEWARE_LAST=${SWIFT_EXTRAS_MIDDLEWARE_LAST:-}
 
 # Set ``SWIFT_EXTRAS_MIDDLEWARE_NO_AUTH`` to extras middlewares that need to be at
 # the beginning of the pipeline, before authentication middlewares.
@@ -127,12 +127,12 @@ ACCOUNT_PORT_BASE=${ACCOUNT_PORT_BASE:-6012}
 
 # Enable tempurl feature
 SWIFT_ENABLE_TEMPURLS=${SWIFT_ENABLE_TEMPURLS:-False}
-SWIFT_TEMPURL_KEY=${SWIFT_TEMPURL_KEY}
+SWIFT_TEMPURL_KEY=${SWIFT_TEMPURL_KEY:-}
 
 # Tell Tempest this project is present
 TEMPEST_SERVICES+=,swift
 
-# Toggle for deploying Keystone under HTTPD + mod_wsgi
+# Toggle for deploying Swift under HTTPD + mod_wsgi
 SWIFT_USE_MOD_WSGI=${SWIFT_USE_MOD_WSGI:-False}
 
 # Functions
@@ -401,11 +401,10 @@ function configure_swift {
     sed -i "/^pipeline/ { s/tempauth/${swift_pipeline} ${SWIFT_EXTRAS_MIDDLEWARE}/ ;}" ${SWIFT_CONFIG_PROXY_SERVER}
     sed -i "/^pipeline/ { s/proxy-server/${SWIFT_EXTRAS_MIDDLEWARE_LAST} proxy-server/ ; }" ${SWIFT_CONFIG_PROXY_SERVER}
 
-    iniuncomment ${SWIFT_CONFIG_PROXY_SERVER} filter:tempauth account_autocreate
+
     iniset ${SWIFT_CONFIG_PROXY_SERVER} app:proxy-server account_autocreate true
 
-    iniuncomment ${SWIFT_CONFIG_PROXY_SERVER} filter:tempauth reseller_prefix
-    iniset ${SWIFT_CONFIG_PROXY_SERVER} filter:tempauth reseller_prefix "TEMPAUTH"
+
 
     # Configure Crossdomain
     iniset ${SWIFT_CONFIG_PROXY_SERVER} filter:crossdomain use "egg:swift#crossdomain"
@@ -421,6 +420,13 @@ function configure_swift {
     iniuncomment ${SWIFT_CONFIG_PROXY_SERVER} filter:keystoneauth use
     iniuncomment ${SWIFT_CONFIG_PROXY_SERVER} filter:keystoneauth operator_roles
     iniset ${SWIFT_CONFIG_PROXY_SERVER} filter:keystoneauth operator_roles "Member, admin"
+
+    # Configure Tempauth. In the sample config file, Keystoneauth is commented
+    # out. Make sure we uncomment Tempauth after we uncomment Keystoneauth
+    # otherwise, this code also sets the reseller_prefix for Keystoneauth.
+    iniuncomment ${SWIFT_CONFIG_PROXY_SERVER} filter:tempauth account_autocreate
+    iniuncomment ${SWIFT_CONFIG_PROXY_SERVER} filter:tempauth reseller_prefix
+    iniset ${SWIFT_CONFIG_PROXY_SERVER} filter:tempauth reseller_prefix "TEMPAUTH"
 
     if is_service_enabled swift3; then
         cat <<EOF >>${SWIFT_CONFIG_PROXY_SERVER}

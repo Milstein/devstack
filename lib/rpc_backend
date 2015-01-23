@@ -21,6 +21,11 @@
 XTRACE=$(set +o | grep xtrace)
 set +o xtrace
 
+RPC_MESSAGING_PROTOCOL=${RPC_MESSAGING_PROTOCOL:-0.9}
+
+# TODO(sdague): RPC backend selection is super wonky because we treat
+# messaging server as a service, which it really isn't for multi host
+QPID_HOST=${QPID_HOST:-}
 
 # Functions
 # ---------
@@ -68,9 +73,6 @@ function check_rpc_backend {
 function cleanup_rpc_backend {
     if is_service_enabled rabbit; then
         # Obliterate rabbitmq-server
-        if [ -n "$RABBIT_USERID" ]; then
-            sudo rabbitmqctl delete_user "$RABBIT_USERID"
-        fi
         uninstall_package rabbitmq-server
         sudo killall epmd || sudo killall -9 epmd
         if is_ubuntu; then
@@ -87,11 +89,20 @@ function cleanup_rpc_backend {
         fi
     elif is_service_enabled zeromq; then
         if is_fedora; then
-            uninstall_package zeromq python-zmq redis
+            uninstall_package zeromq python-zmq
+            if [ "$ZEROMQ_MATCHMAKER" == "redis" ]; then
+                uninstall_package redis python-redis
+            fi
         elif is_ubuntu; then
-            uninstall_package libzmq1 python-zmq redis-server
+            uninstall_package libzmq1 python-zmq
+            if [ "$ZEROMQ_MATCHMAKER" == "redis" ]; then
+                uninstall_package redis-server python-redis
+            fi
         elif is_suse; then
-            uninstall_package libzmq1 python-pyzmq redis
+            uninstall_package libzmq1 python-pyzmq
+            if [ "$ZEROMQ_MATCHMAKER" == "redis" ]; then
+                uninstall_package redis python-redis
+            fi
         else
             exit_distro_not_supported "zeromq installation"
         fi
@@ -150,11 +161,20 @@ function install_rpc_backend {
         # but there is a matchmaker driver that works
         # really well & out of the box for multi-node.
         if is_fedora; then
-            install_package zeromq python-zmq redis
+            install_package zeromq python-zmq
+            if [ "$ZEROMQ_MATCHMAKER" == "redis" ]; then
+                install_package redis python-redis
+            fi
         elif is_ubuntu; then
-            install_package libzmq1 python-zmq redis-server
+            install_package libzmq1 python-zmq
+            if [ "$ZEROMQ_MATCHMAKER" == "redis" ]; then
+                install_package redis-server python-redis
+            fi
         elif is_suse; then
-            install_package libzmq1 python-pyzmq redis
+            install_package libzmq1 python-pyzmq
+            if [ "$ZEROMQ_MATCHMAKER" == "redis" ]; then
+                install_package redis python-redis
+            fi
         else
             exit_distro_not_supported "zeromq installation"
         fi
@@ -176,17 +196,31 @@ function restart_rpc_backend {
         echo_summary "Starting RabbitMQ"
         # NOTE(bnemec): Retry initial rabbitmq configuration to deal with
         # the fact that sometimes it fails to start properly.
-        # Reference: https://bugzilla.redhat.com/show_bug.cgi?id=1059028
+        # Reference: https://bugzilla.redhat.com/show_bug.cgi?id=1144100
         local i
         for i in `seq 10`; do
+            local rc=0
+
+            [[ $i -eq "10" ]] && die $LINENO "Failed to set rabbitmq password"
+
             if is_fedora || is_suse; then
                 # service is not started by default
                 restart_service rabbitmq-server
             fi
-            rabbit_setuser "$RABBIT_USERID" "$RABBIT_PASSWORD"
+
+            rabbit_setuser "$RABBIT_USERID" "$RABBIT_PASSWORD" || rc=$?
+            if [ $rc -ne 0 ]; then
+                continue
+            fi
+
             # change the rabbit password since the default is "guest"
-            sudo rabbitmqctl change_password $RABBIT_USERID $RABBIT_PASSWORD && break
-            [[ $i -eq "10" ]] && die $LINENO "Failed to set rabbitmq password"
+            sudo rabbitmqctl change_password \
+                $RABBIT_USERID $RABBIT_PASSWORD || rc=$?
+            if [ $rc -ne 0 ]; then
+                continue;
+            fi
+
+            break
         done
         if is_service_enabled n-cell; then
             # Add partitioned access for the child cell
@@ -207,9 +241,9 @@ function iniset_rpc_backend {
     local file=$2
     local section=$3
     if is_service_enabled zeromq; then
-        iniset $file $section rpc_backend ${package}.openstack.common.rpc.impl_zmq
+        iniset $file $section rpc_backend "zmq"
         iniset $file $section rpc_zmq_matchmaker \
-            ${package}.openstack.common.rpc.matchmaker_redis.MatchMakerRedis
+            oslo.messaging._drivers.matchmaker_redis.MatchMakerRedis
         # Set MATCHMAKER_REDIS_HOST if running multi-node.
         MATCHMAKER_REDIS_HOST=${MATCHMAKER_REDIS_HOST:-127.0.0.1}
         iniset $file matchmaker_redis host $MATCHMAKER_REDIS_HOST

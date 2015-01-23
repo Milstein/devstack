@@ -68,7 +68,7 @@ fi
 # Maintain this here for backward-compatibility with the old configuration
 # DEPRECATED: Use CINDER_ENABLED_BACKENDS instead
 # Support for multi lvm backend configuration (default is no support)
-CINDER_MULTI_LVM_BACKEND=$(trueorfalse False $CINDER_MULTI_LVM_BACKEND)
+CINDER_MULTI_LVM_BACKEND=$(trueorfalse False CINDER_MULTI_LVM_BACKEND)
 
 # Default backends
 # The backend format is type:name where type is one of the supported backend
@@ -76,16 +76,16 @@ CINDER_MULTI_LVM_BACKEND=$(trueorfalse False $CINDER_MULTI_LVM_BACKEND)
 # configuration and for the volume type name.  Multiple backends are
 # comma-separated.
 if [[ $CINDER_MULTI_LVM_BACKEND == "False" ]]; then
-    CINDER_ENABLED_BACKENDS=${CINDER_ENABLED_BACKENDS:-lvm:lvmdriver-1}
+    CINDER_ENABLED_BACKENDS=${CINDER_ENABLED_BACKENDS:-lvm:${DEFAULT_VOLUME_GROUP_NAME##*-}}
 else
-    CINDER_ENABLED_BACKENDS=${CINDER_ENABLED_BACKENDS:-lvm:lvmdriver-1,lvm:lvmdriver-2}
+    CINDER_ENABLED_BACKENDS=${CINDER_ENABLED_BACKENDS:-lvm:${DEFAULT_VOLUME_GROUP_NAME##*-},lvm:cinder}
 fi
 
 
 # Should cinder perform secure deletion of volumes?
 # Defaults to true, can be set to False to avoid this bug when testing:
 # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1023755
-CINDER_SECURE_DELETE=`trueorfalse True $CINDER_SECURE_DELETE`
+CINDER_SECURE_DELETE=$(trueorfalse True CINDER_SECURE_DELETE)
 
 # Cinder reports allocations back to the scheduler on periodic intervals
 # it turns out we can get an "out of space" issue when we run tests too
@@ -109,6 +109,12 @@ if is_service_enabled c-vol && [[ -n "$CINDER_ENABLED_BACKENDS" ]]; then
         fi
     done
 fi
+
+# Change the default nova_catalog_info and nova_catalog_admin_info values in
+# cinder so that the service name cinder is searching for matches that set for
+# nova in keystone.
+CINDER_NOVA_CATALOG_INFO=${CINDER_NOVA_CATALOG_INFO:-compute:nova:publicURL}
+CINDER_NOVA_CATALOG_ADMIN_INFO=${CINDER_NOVA_CATALOG_ADMIN_INFO:-compute:nova:adminURL}
 
 
 # Functions
@@ -205,6 +211,8 @@ function configure_cinder {
 
     cp -p $CINDER_DIR/etc/cinder/policy.json $CINDER_CONF_DIR
 
+    rm -f $CINDER_CONF
+
     configure_cinder_rootwrap
 
     cp $CINDER_DIR/etc/cinder/api-paste.ini $CINDER_API_PASTE_INI
@@ -219,6 +227,9 @@ function configure_cinder {
     inicomment $CINDER_API_PASTE_INI filter:authtoken signing_dir
 
     configure_auth_token_middleware $CINDER_CONF cinder $CINDER_AUTH_CACHE_DIR
+
+    iniset $CINDER_CONF DEFAULT nova_catalog_info $CINDER_NOVA_CATALOG_INFO
+    iniset $CINDER_CONF DEFAULT nova_catalog_admin_info $CINDER_NOVA_CATALOG_ADMIN_INFO
 
     iniset $CINDER_CONF DEFAULT auth_strategy keystone
     iniset $CINDER_CONF DEFAULT debug $ENABLE_DEBUG_LOG_LEVEL
@@ -292,7 +303,7 @@ function configure_cinder {
         configure_cinder_driver
     fi
 
-    if [[ is_fedora && $DISTRO =~ (rhel6) ]]; then
+    if is_fedora && [[ $DISTRO =~ (rhel6) ]]; then
         # Cinder clones are slightly larger due to some extra
         # metadata.  RHEL6 will not allow auto-extending of LV's
         # without this, leading to clones giving hard-to-track disk
@@ -376,7 +387,7 @@ function init_cinder {
 
     if is_service_enabled $DATABASE_BACKENDS; then
         # (Re)create cinder database
-        recreate_database cinder utf8
+        recreate_database cinder
 
         # Migrate cinder database
         $CINDER_BIN_DIR/cinder-manage db sync

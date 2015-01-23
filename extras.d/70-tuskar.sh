@@ -65,7 +65,7 @@ TUSKARCLIENT_BRANCH=${TUSKARCLIENT_BRANCH:-master}
 TUSKAR_DIR=$DEST/tuskar
 TUSKARCLIENT_DIR=$DEST/python-tuskarclient
 TUSKAR_AUTH_CACHE_DIR=${TUSKAR_AUTH_CACHE_DIR:-/var/cache/tuskar}
-TUSKAR_STANDALONE=`trueorfalse False $TUSKAR_STANDALONE`
+TUSKAR_STANDALONE=$(trueorfalse False TUSKAR_STANDALONE)
 TUSKAR_CONF_DIR=/etc/tuskar
 TUSKAR_CONF=$TUSKAR_CONF_DIR/tuskar.conf
 TUSKAR_API_HOST=${TUSKAR_API_HOST:-$HOST_IP}
@@ -131,7 +131,7 @@ function configure_tuskar {
 function init_tuskar {
 
     # (re)create tuskar database
-    recreate_database tuskar utf8
+    recreate_database tuskar
 
     tuskar-dbsync --config-file $TUSKAR_CONF
     create_tuskar_cache_dir

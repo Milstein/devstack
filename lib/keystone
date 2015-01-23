@@ -71,6 +71,7 @@ KEYSTONE_ASSIGNMENT_BACKEND=${KEYSTONE_ASSIGNMENT_BACKEND:-sql}
 
 # Select Keystone's token format
 # Choose from 'UUID', 'PKI', or 'PKIZ'
+KEYSTONE_TOKEN_FORMAT=${KEYSTONE_TOKEN_FORMAT:-}
 KEYSTONE_TOKEN_FORMAT=$(echo ${KEYSTONE_TOKEN_FORMAT} | tr '[:upper:]' '[:lower:]')
 
 # Set Keystone interface configuration
@@ -106,6 +107,10 @@ fi
 KEYSTONE_AUTH_URI=${KEYSTONE_AUTH_PROTOCOL}://${KEYSTONE_AUTH_HOST}:${KEYSTONE_AUTH_PORT}
 KEYSTONE_SERVICE_URI=${KEYSTONE_SERVICE_PROTOCOL}://${KEYSTONE_SERVICE_HOST}:${KEYSTONE_SERVICE_PORT}
 
+# V3 URIs
+KEYSTONE_AUTH_URI_V3=$KEYSTONE_AUTH_URI/v3
+KEYSTONE_SERVICE_URI_V3=$KEYSTONE_SERVICE_URI/v3
+
 # Functions
 # ---------
 # cleanup_keystone() - Remove residual data files, anything left over from previous
@@ -116,7 +121,7 @@ function cleanup_keystone {
 
 # _cleanup_keystone_apache_wsgi() - Remove wsgi files, disable and remove apache vhost file
 function _cleanup_keystone_apache_wsgi {
-    sudo rm -f $KEYSTONE_WSGI_DIR/*.wsgi
+    sudo rm -f $KEYSTONE_WSGI_DIR/*
     sudo rm -f $(apache_site_config_for keystone)
 }
 
@@ -318,10 +323,6 @@ function configure_keystone {
 
     iniset $KEYSTONE_CONF DEFAULT admin_workers "$API_WORKERS"
     # Public workers will use the server default, typically number of CPU.
-
-    if [[ -n "$KEYSTONE_TOKEN_HASH_ALGORITHM" ]]; then
-        iniset $KEYSTONE_CONF token hash_algorithm "$KEYSTONE_TOKEN_HASH_ALGORITHM"
-    fi
 }
 
 function configure_keystone_extensions {
@@ -398,6 +399,9 @@ function create_keystone_accounts {
     get_or_add_user_role $another_role $demo_user $demo_tenant
     get_or_add_user_role $member_role $demo_user $invis_tenant
 
+    get_or_create_group "developers" "default" "openstack developers"
+    get_or_create_group "testers" "default"
+
     # Keystone
     if [[ "$KEYSTONE_CATALOG_BACKEND" = 'sql' ]]; then
 
@@ -443,9 +447,6 @@ function configure_auth_token_middleware {
     iniset $conf_file $section admin_user $admin_user
     iniset $conf_file $section admin_password $SERVICE_PASSWORD
     iniset $conf_file $section signing_dir $signing_dir
-    if [[ -n "$KEYSTONE_TOKEN_HASH_ALGORITHM" ]]; then
-        iniset $conf_file keystone_authtoken hash_algorithms "$KEYSTONE_TOKEN_HASH_ALGORITHM"
-    fi
 }
 
 # init_keystone() - Initialize databases, etc.
@@ -455,7 +456,7 @@ function init_keystone {
     fi
 
     # (Re)create keystone database
-    recreate_database keystone utf8
+    recreate_database keystone
 
     # Initialize keystone database
     $KEYSTONE_DIR/bin/keystone-manage db_sync

@@ -40,6 +40,12 @@ PATH=$PATH:/usr/local/sbin:/usr/sbin:/sbin
 # Keep track of the devstack directory
 TOP_DIR=$(cd $(dirname "$0") && pwd)
 
+# Check for uninitialized variables, a big cause of bugs
+NOUNSET=${NOUNSET:-}
+if [[ -n "$NOUNSET" ]]; then
+    set -o nounset
+fi
+
 # Sanity Checks
 # -------------
 
@@ -78,6 +84,9 @@ fi
 
 # Prepare the environment
 # -----------------------
+
+# Initialize variables:
+LAST_SPINNER_PID=""
 
 # Import common functions
 source $TOP_DIR/functions
@@ -143,7 +152,7 @@ source $TOP_DIR/stackrc
 
 # Warn users who aren't on an explicitly supported distro, but allow them to
 # override check and attempt installation with ``FORCE=yes ./stack``
-if [[ ! ${DISTRO} =~ (precise|trusty|7.0|wheezy|sid|testing|jessie|f19|f20|f21|rhel6|rhel7) ]]; then
+if [[ ! ${DISTRO} =~ (precise|trusty|7.0|wheezy|sid|testing|jessie|f20|f21|rhel6|rhel7) ]]; then
     echo "WARNING: this script has not been tested on $DISTRO"
     if [[ "$FORCE" != "yes" ]]; then
         die $LINENO "If you wish to run this script anyway run with FORCE=yes"
@@ -172,12 +181,12 @@ export_proxy_variables
 disable_negated_services
 
 # Look for obsolete stuff
-if [[ ,${ENABLED_SERVICES}, =~ ,"swift", ]]; then
-    echo "FATAL: 'swift' is not supported as a service name"
-    echo "FATAL: Use the actual swift service names to enable them as required:"
-    echo "FATAL: s-proxy s-object s-container s-account"
-    exit 1
-fi
+# if [[ ,${ENABLED_SERVICES}, =~ ,"swift", ]]; then
+#     echo "FATAL: 'swift' is not supported as a service name"
+#     echo "FATAL: Use the actual swift service names to enable them as required:"
+#     echo "FATAL: s-proxy s-object s-container s-account"
+#     exit 1
+# fi
 
 # Configure sudo
 # --------------
@@ -211,17 +220,6 @@ fi
 
 # Some distros need to add repos beyond the defaults provided by the vendor
 # to pick up required packages.
-
-if is_fedora && [ $DISTRO == "rhel6" ]; then
-    # Installing Open vSwitch on RHEL requires enabling the RDO repo.
-    RHEL6_RDO_REPO_RPM=${RHEL6_RDO_REPO_RPM:-"http://rdo.fedorapeople.org/openstack-icehouse/rdo-release-icehouse.rpm"}
-    RHEL6_RDO_REPO_ID=${RHEL6_RDO_REPO_ID:-"openstack-icehouse"}
-    if ! sudo yum repolist enabled $RHEL6_RDO_REPO_ID | grep -q $RHEL6_RDO_REPO_ID; then
-        echo "RDO repo not detected; installing"
-        yum_install $RHEL6_RDO_REPO_RPM || \
-            die $LINENO "Error installing RDO repo, cannot continue"
-    fi
-fi
 
 if is_fedora && [[ $DISTRO == "rhel6" || $DISTRO == "rhel7" ]]; then
     # RHEL requires EPEL for many Open Stack dependencies
@@ -269,6 +267,23 @@ EOF
         OPTIONAL_REPO=rhel-6-server-optional-rpms
     fi
     sudo yum-config-manager --enable ${OPTIONAL_REPO}
+
+    # Installing Open vSwitch on RHEL requires enabling the RDO repo.
+    # Note no juno packages for rhel6
+    if [[ $DISTRO == "rhel6" ]]; then
+        RHEL_RDO_REPO_RPM=${RHEL6_RDO_REPO_RPM:-"https://repos.fedorapeople.org/repos/openstack/openstack-icehouse/rdo-release-icehouse-4.noarch.rpm"}
+        RHEL_RDO_REPO_ID=${RHEL6_RDO_REPO_ID:-"openstack-icehouse"}
+    elif [[ $DISTRO == "rhel7" ]]; then
+        RHEL_RDO_REPO_RPM=${RHEL7_RDO_REPO_RPM:-"https://repos.fedorapeople.org/repos/openstack/openstack-juno/rdo-release-juno-1.noarch.rpm"}
+        RHEL_RDO_REPO_ID=${RHEL7_RDO_REPO_ID:-"openstack-juno"}
+    fi
+
+    if ! sudo yum repolist enabled $RHEL_RDO_REPO_ID | grep -q $RHEL_RDO_REPO_ID; then
+        echo "RDO repo not detected; installing"
+        yum_install $RHEL_RDO_REPO_RPM || \
+            die $LINENO "Error installing RDO repo, cannot continue"
+    fi
+
 fi
 
 
@@ -305,7 +320,7 @@ fi
 # -----------------
 
 # Set up logging level
-VERBOSE=$(trueorfalse True $VERBOSE)
+VERBOSE=$(trueorfalse True VERBOSE)
 
 # Draw a spinner so the user knows something is happening
 function spinner {
@@ -364,15 +379,14 @@ if [[ -n "$LOGFILE" || -n "$SCREEN_LOGDIR" ]]; then
 fi
 
 if [[ -n "$LOGFILE" ]]; then
-    # First clean up old log files.  Use the user-specified ``LOGFILE``
-    # as the template to search for, appending '.*' to match the date
-    # we added on earlier runs.
-    LOGDIR=$(dirname "$LOGFILE")
-    LOGFILENAME=$(basename "$LOGFILE")
-    mkdir -p $LOGDIR
-    find $LOGDIR -maxdepth 1 -name $LOGFILENAME.\* -mtime +$LOGDAYS -exec rm {} \;
+    # Clean up old log files.  Append '.*' to the user-specified
+    # ``LOGFILE`` to match the date in the search template.
+    LOGFILE_DIR="${LOGFILE%/*}"           # dirname
+    LOGFILE_NAME="${LOGFILE##*/}"         # basename
+    mkdir -p $LOGFILE_DIR
+    find $LOGFILE_DIR -maxdepth 1 -name $LOGFILE_NAME.\* -mtime +$LOGDAYS -exec rm {} \;
     LOGFILE=$LOGFILE.${CURRENT_LOG_TIME}
-    SUMFILE=$LOGFILE.${CURRENT_LOG_TIME}.summary
+    SUMFILE=$LOGFILE.summary.${CURRENT_LOG_TIME}
 
     # Redirect output according to config
 
@@ -393,8 +407,8 @@ if [[ -n "$LOGFILE" ]]; then
 
     echo_summary "stack.sh log $LOGFILE"
     # Specified logfile name always links to the most recent log
-    ln -sf $LOGFILE $LOGDIR/$LOGFILENAME
-    ln -sf $SUMFILE $LOGDIR/$LOGFILENAME.summary
+    ln -sf $LOGFILE $LOGFILE_DIR/$LOGFILE_NAME
+    ln -sf $SUMFILE $LOGFILE_DIR/$LOGFILE_NAME.summary
 else
     # Set up output redirection without log files
     # Set fd 3 to a copy of stdout. So we can set fd 1 without losing
@@ -476,47 +490,6 @@ set -o errexit
 # an error.  It is also useful for following along as the install occurs.
 set -o xtrace
 
-
-# Common Configuration
-# --------------------
-
-# Set ``OFFLINE`` to ``True`` to configure ``stack.sh`` to run cleanly without
-# Internet access. ``stack.sh`` must have been previously run with Internet
-# access to install prerequisites and fetch repositories.
-OFFLINE=`trueorfalse False $OFFLINE`
-
-# Set ``ERROR_ON_CLONE`` to ``True`` to configure ``stack.sh`` to exit if
-# the destination git repository does not exist during the ``git_clone``
-# operation.
-ERROR_ON_CLONE=`trueorfalse False $ERROR_ON_CLONE`
-
-# Whether to enable the debug log level in OpenStack services
-ENABLE_DEBUG_LOG_LEVEL=`trueorfalse True $ENABLE_DEBUG_LOG_LEVEL`
-
-# Set fixed and floating range here so we can make sure not to use addresses
-# from either range when attempting to guess the IP to use for the host.
-# Note that setting FIXED_RANGE may be necessary when running DevStack
-# in an OpenStack cloud that uses either of these address ranges internally.
-FLOATING_RANGE=${FLOATING_RANGE:-172.24.4.0/24}
-FIXED_RANGE=${FIXED_RANGE:-10.0.0.0/24}
-FIXED_NETWORK_SIZE=${FIXED_NETWORK_SIZE:-256}
-
-HOST_IP=$(get_default_host_ip $FIXED_RANGE $FLOATING_RANGE "$HOST_IP_IFACE" "$HOST_IP")
-if [ "$HOST_IP" == "" ]; then
-    die $LINENO "Could not determine host ip address.  See local.conf for suggestions on setting HOST_IP."
-fi
-
-# Allow the use of an alternate hostname (such as localhost/127.0.0.1) for service endpoints.
-SERVICE_HOST=${SERVICE_HOST:-$HOST_IP}
-
-# Configure services to use syslog instead of writing to individual log files
-SYSLOG=`trueorfalse False $SYSLOG`
-SYSLOG_HOST=${SYSLOG_HOST:-$HOST_IP}
-SYSLOG_PORT=${SYSLOG_PORT:-516}
-
-# Use color for logging output (only available if syslog is not used)
-LOG_COLOR=`trueorfalse True $LOG_COLOR`
-
 # Reset the bundle of CA certificates
 SSL_BUNDLE_FILE="$DATA_DIR/ca-bundle.pem"
 rm -f $SSL_BUNDLE_FILE
@@ -528,9 +501,6 @@ source $TOP_DIR/lib/rpc_backend
 # Make sure we only have one rpc backend enabled,
 # and the specified rpc backend is available on your platform.
 check_rpc_backend
-
-# Use native SSL for servers in SSL_ENABLED_SERVICES
-USE_SSL=$(trueorfalse False $USE_SSL)
 
 # Service to enable with SSL if USE_SSL is True
 SSL_ENABLED_SERVICES="key,nova,cinder,glance,s-proxy,neutron"
@@ -552,6 +522,7 @@ source $TOP_DIR/lib/tls
 source $TOP_DIR/lib/infra
 source $TOP_DIR/lib/oslo
 source $TOP_DIR/lib/stackforge
+source $TOP_DIR/lib/lvm
 source $TOP_DIR/lib/horizon
 source $TOP_DIR/lib/keystone
 source $TOP_DIR/lib/glance
@@ -564,15 +535,14 @@ source $TOP_DIR/lib/neutron
 source $TOP_DIR/lib/ldap
 source $TOP_DIR/lib/dstat
 
+# Clone all external plugins
+fetch_plugins
+
 # Extras Source
 # --------------
 
 # Phase: source
-if [[ -d $TOP_DIR/extras.d ]]; then
-    for i in $TOP_DIR/extras.d/*.sh; do
-        [[ -r $i ]] && source $i source
-    done
-fi
+run_phase source
 
 # Interactive Configuration
 # -------------------------
@@ -642,8 +612,10 @@ initialize_database_backends && echo "Using $DATABASE_TYPE database backend" || 
 # Queue Configuration
 
 # Rabbit connection info
+# In multi node devstack, second node needs RABBIT_USERID, but rabbit
+# isn't enabled.
+RABBIT_USERID=${RABBIT_USERID:-stackrabbit}
 if is_service_enabled rabbit; then
-    RABBIT_USERID=${RABBIT_USERID:-stackrabbit}
     RABBIT_HOST=${RABBIT_HOST:-$SERVICE_HOST}
     read_password RABBIT_PASSWORD "ENTER A PASSWORD TO USE FOR RABBIT."
 fi
@@ -701,32 +673,7 @@ source $TOP_DIR/tools/install_prereqs.sh
 
 # Configure an appropriate python environment
 if [[ "$OFFLINE" != "True" ]]; then
-    PYPI_ALTERNATIVE_URL=$PYPI_ALTERNATIVE_URL $TOP_DIR/tools/install_pip.sh
-fi
-
-# Do the ugly hacks for broken packages and distros
-source $TOP_DIR/tools/fixup_stuff.sh
-
-
-# Extras Pre-install
-# ------------------
-
-# Phase: pre-install
-if [[ -d $TOP_DIR/extras.d ]]; then
-    for i in $TOP_DIR/extras.d/*.sh; do
-        [[ -r $i ]] && source $i stack pre-install
-    done
-fi
-
-
-install_rpc_backend
-
-if is_service_enabled $DATABASE_BACKENDS; then
-    install_database
-fi
-
-if is_service_enabled neutron; then
-    install_neutron_agent_packages
+    PYPI_ALTERNATIVE_URL=${PYPI_ALTERNATIVE_URL:-""} $TOP_DIR/tools/install_pip.sh
 fi
 
 TRACK_DEPENDS=${TRACK_DEPENDS:-False}
@@ -740,6 +687,26 @@ if [[ $TRACK_DEPENDS = True ]]; then
     virtualenv --system-site-packages $DEST/.venv
     source $DEST/.venv/bin/activate
     $DEST/.venv/bin/pip freeze > $DEST/requires-pre-pip
+fi
+
+# Do the ugly hacks for broken packages and distros
+source $TOP_DIR/tools/fixup_stuff.sh
+
+
+# Extras Pre-install
+# ------------------
+
+# Phase: pre-install
+run_phase stack pre-install
+
+install_rpc_backend
+
+if is_service_enabled $DATABASE_BACKENDS; then
+    install_database
+fi
+
+if is_service_enabled neutron; then
+    install_neutron_agent_packages
 fi
 
 # Check Out and Install Source
@@ -781,7 +748,7 @@ if use_library_from_git "python-openstackclient"; then
     git_clone_by_name "python-openstackclient"
     setup_dev_lib "python-openstackclient"
 else
-    pip_install 'python-openstackclient>=1.0.0'
+    pip_install 'python-openstackclient>=1.0.2'
 fi
 
 
@@ -863,11 +830,7 @@ fi
 # --------------
 
 # Phase: install
-if [[ -d $TOP_DIR/extras.d ]]; then
-    for i in $TOP_DIR/extras.d/*.sh; do
-        [[ -r $i ]] && source $i stack install
-    done
-fi
+run_phase stack install
 
 if [[ $TRACK_DEPENDS = True ]]; then
     $DEST/.venv/bin/pip freeze > $DEST/requires-post-pip
@@ -946,13 +909,14 @@ fi
 # Configure screen
 # ----------------
 
-USE_SCREEN=$(trueorfalse True $USE_SCREEN)
+USE_SCREEN=$(trueorfalse True USE_SCREEN)
 if [[ "$USE_SCREEN" == "True" ]]; then
     # Create a new named screen to run processes in
     screen -d -m -S $SCREEN_NAME -t shell -s /bin/bash
     sleep 1
 
     # Set a reasonable status bar
+    SCREEN_HARDSTATUS=${SCREEN_HARDSTATUS-:}
     if [ -z "$SCREEN_HARDSTATUS" ]; then
         SCREEN_HARDSTATUS='%{= .} %-Lw%{= .}%> %n%f %t*%{= .}%+Lw%< %-=%{g}(%{d}%H/%l%{g})'
     fi
@@ -974,6 +938,10 @@ init_service_check
 
 # A better kind of sysstat, with the top process per time slice
 start_dstat
+
+# Initialize default LVM volume group
+# -----------------------------------
+init_lvm_volume_group $DEFAULT_VOLUME_GROUP_NAME $VOLUME_BACKING_FILE_SIZE
 
 # Start Services
 # ==============
@@ -1029,6 +997,14 @@ if is_service_enabled key; then
     export OS_USERNAME=admin
     export OS_PASSWORD=$ADMIN_PASSWORD
     export OS_REGION_NAME=$REGION_NAME
+fi
+
+
+# ZeroMQ
+# ------
+if is_service_enabled zeromq; then
+    echo_summary "Starting zeromq receiver"
+    run_process zeromq "$OSLO_BIN_DIR/oslo-messaging-zmq-receiver"
 fi
 
 
@@ -1140,11 +1116,7 @@ fi
 # ====================
 
 # Phase: post-config
-if [[ -d $TOP_DIR/extras.d ]]; then
-    for i in $TOP_DIR/extras.d/*.sh; do
-        [[ -r $i ]] && source $i stack post-config
-    done
-fi
+run_phase stack post-config
 
 
 # Local Configuration
@@ -1212,11 +1184,6 @@ fi
 # Create a randomized default value for the keymgr's fixed_key
 if is_service_enabled nova; then
     iniset $NOVA_CONF keymgr fixed_key $(generate_hex_string 32)
-fi
-
-if is_service_enabled zeromq; then
-    echo_summary "Starting zermomq receiver"
-    run_process zeromq "$OSLO_BIN_DIR/oslo-messaging-zmq-receiver"
 fi
 
 # Launch the nova-api and wait for it to answer before continuing
@@ -1327,11 +1294,7 @@ merge_config_group $TOP_DIR/local.conf extra
 # ==========
 
 # Phase: extra
-if [[ -d $TOP_DIR/extras.d ]]; then
-    for i in $TOP_DIR/extras.d/*.sh; do
-        [[ -r $i ]] && source $i stack extra
-    done
-fi
+run_phase stack extra
 
 # Local Configuration
 # ===================
