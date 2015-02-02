@@ -43,8 +43,8 @@ function configure_cisco_vpn {
     echo "Configuring L3 Agent..."
     _configure_neutron_l3_agent
     echo "Configuring Cisco VPN device driver..."
-    cp $NEUTRON_DIR/etc/vpn_agent.ini $Q_VPN_CONF_FILE
-    iniset $Q_VPN_CONF_FILE vpnagent vpn_device_driver "neutron.services.vpn.device_drivers.cisco_ipsec.CiscoCsrIPsecDriver"
+    cp $NEUTRON_VPNAAS_DIR/etc/vpn_agent.ini $Q_VPN_CONF_FILE
+    iniset $Q_VPN_CONF_FILE vpnagent vpn_device_driver "neutron_vpnaas.services.vpn.device_drivers.cisco_ipsec.CiscoCsrIPsecDriver"
 }
 
 function init_cisco_vpn {
@@ -52,7 +52,9 @@ function init_cisco_vpn {
 }
 
 function install_cisco_vpn {
-    :
+    echo "Installing VPNaaS repo"
+    git_clone $NEUTRON_VPNAAS_REPO $NEUTRON_VPNAAS_DIR $NEUTRON_VPNAAS_BRANCH
+    setup_develop $NEUTRON_VPNAAS_DIR
 }
 
 function start_cisco_vpn {
