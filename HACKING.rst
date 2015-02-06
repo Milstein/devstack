@@ -6,7 +6,7 @@ General
 -------
 
 DevStack is written in UNIX shell script.  It uses a number of bash-isms
-and so is limited to Bash (version 3 and up) and compatible shells.
+and so is limited to Bash (version 4 and up) and compatible shells.
 Shell script was chosen because it best illustrates the steps used to
 set up and interact with OpenStack components.
 
@@ -20,7 +20,7 @@ in `How To Contribute`__ in the OpenStack wiki.  `DevStack's LaunchPad project`_
 contains the usual links for blueprints, bugs, etc.
 
 __ contribute_
-.. _contribute: http://wiki.openstack.org/HowToContribute
+.. _contribute: http://docs.openstack.org/infra/manual/developers.html
 
 __ lp_
 .. _lp: https://launchpad.net/~devstack

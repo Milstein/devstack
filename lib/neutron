@@ -10,24 +10,25 @@
 
 # ``stack.sh`` calls the entry points in this order:
 #
-# - install_neutron
-# - install_neutronclient
 # - install_neutron_agent_packages
+# - install_neutronclient
+# - install_neutron
 # - install_neutron_third_party
 # - configure_neutron
 # - init_neutron
 # - configure_neutron_third_party
 # - init_neutron_third_party
 # - start_neutron_third_party
-# - create_neutron_cache_dir
 # - create_nova_conf_neutron
 # - start_neutron_service_and_check
+# - check_neutron_third_party_integration
 # - start_neutron_agents
 # - create_neutron_initial_network
 # - setup_neutron_debug
 #
 # ``unstack.sh`` calls the entry points in this order:
 #
+# - teardown_neutron_debug
 # - stop_neutron
 # - stop_neutron_third_party
 # - cleanup_neutron
@@ -533,15 +534,9 @@ function create_neutron_cache_dir {
 
 # Migrated from keystone_data.sh
 function create_neutron_accounts {
-
-    local service_tenant=$(openstack project list | awk "/ $SERVICE_TENANT_NAME / { print \$2 }")
-    local service_role=$(openstack role list | awk "/ service / { print \$2 }")
-
     if [[ "$ENABLED_SERVICES" =~ "q-svc" ]]; then
 
-        local neutron_user=$(get_or_create_user "neutron" \
-            "$SERVICE_PASSWORD" $service_tenant)
-        get_or_add_user_role $service_role $neutron_user $service_tenant
+        create_service_user "neutron"
 
         if [[ "$KEYSTONE_CATALOG_BACKEND" = 'sql' ]]; then
 
@@ -799,12 +794,20 @@ function start_neutron_agents {
 # stop_neutron() - Stop running processes (non-screen)
 function stop_neutron {
     if is_service_enabled q-dhcp; then
+        stop_process q-dhcp
         pid=$(ps aux | awk '/[d]nsmasq.+interface=(tap|ns-)/ { print $2 }')
         [ ! -z "$pid" ] && sudo kill -9 $pid
     fi
+
+    stop_process q-svc
+    stop_process q-l3
+
     if is_service_enabled q-meta; then
         sudo pkill -9 -f neutron-ns-metadata-proxy || :
+        stop_process q-meta
     fi
+
+    stop_process q-agt
 
     if is_service_enabled q-lbaas; then
         neutron_lbaas_stop
@@ -847,15 +850,20 @@ function cleanup_neutron {
     done
 }
 
-# _configure_neutron_common()
-# Set common config for all neutron server and agents.
-# This MUST be called before other ``_configure_neutron_*`` functions.
-function _configure_neutron_common {
+
+function _create_neutron_conf_dir {
     # Put config files in ``NEUTRON_CONF_DIR`` for everyone to find
     if [[ ! -d $NEUTRON_CONF_DIR ]]; then
         sudo mkdir -p $NEUTRON_CONF_DIR
     fi
     sudo chown $STACK_USER $NEUTRON_CONF_DIR
+}
+
+# _configure_neutron_common()
+# Set common config for all neutron server and agents.
+# This MUST be called before other ``_configure_neutron_*`` functions.
+function _configure_neutron_common {
+    _create_neutron_conf_dir
 
     cp $NEUTRON_DIR/etc/neutron.conf $NEUTRON_CONF
 
@@ -1015,6 +1023,9 @@ function _configure_neutron_ceilometer_notifications {
 }
 
 function _configure_neutron_lbaas {
+    if [ -f $NEUTRON_LBAAS_DIR/etc/neutron_lbaas.conf ]; then
+        cp $NEUTRON_LBAAS_DIR/etc/neutron_lbaas.conf $NEUTRON_CONF_DIR
+    fi
     neutron_agent_lbaas_configure_common
     neutron_agent_lbaas_configure_agent
 }
@@ -1025,11 +1036,17 @@ function _configure_neutron_metering {
 }
 
 function _configure_neutron_fwaas {
+    if [ -f $NEUTRON_FWAAS_DIR/etc/neutron_fwaas.conf ]; then
+        cp $NEUTRON_FWAAS_DIR/etc/neutron_fwaas.conf $NEUTRON_CONF_DIR
+    fi
     neutron_fwaas_configure_common
     neutron_fwaas_configure_driver
 }
 
 function _configure_neutron_vpn {
+    if [ -f $NEUTRON_VPNAAS_DIR/etc/neutron_vpnaas.conf ]; then
+        cp $NEUTRON_VPNAAS_DIR/etc/neutron_vpnaas.conf $NEUTRON_CONF_DIR
+    fi
     neutron_vpn_install_agent_packages
     neutron_vpn_configure_common
 }

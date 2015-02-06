@@ -16,7 +16,7 @@ DevStack using this mechanism.
 The script in ``extras.d`` is expected to be mostly a dispatcher to
 functions in a ``lib/*`` script. The scripts are named with a
 zero-padded two digits sequence number prefix to control the order that
-the scripts are called, and with a suffix of ``.sh``. DevSack reserves
+the scripts are called, and with a suffix of ``.sh``. DevStack reserves
 for itself the sequence numbers 00 through 09 and 90 through 99.
 
 Below is a template that shows handlers for the possible command-line
@@ -107,19 +107,24 @@ directory. Inside this directory there can be 2 files.
   sourced very early in the process. This is helpful if other plugins
   might depend on this one, and need access to global variables to do
   their work.
+
+  Your settings should include any ``enable_service`` lines required
+  by your plugin. This is especially important if you are kicking off
+  services using ``run_process`` as it only works with enabled
+  services.
+
 - ``plugin.sh`` - the actual plugin. It will be executed by devstack
   during it's run. The run order will be done in the registration
   order for these plugins, and will occur immediately after all in
   tree extras.d dispatch at the phase in question.  The plugin.sh
-  looks like the extras.d dispatcher above **except** it should not
-  include the is_service_enabled conditional. All external plugins are
-  always assumed to be enabled.
+  looks like the extras.d dispatcher above.
 
 Plugins are registered by adding the following to the localrc section
 of ``local.conf``.
 
 They are added in the following format::
 
+  [[local|localrc]]
   enable_plugin <NAME> <GITURL> [GITREF]
 
 - ``name`` - an arbitrary name. (ex: glustfs, docker, zaqar, congress)
@@ -129,7 +134,7 @@ They are added in the following format::
 
 An example would be as follows::
 
-  enable_plugin glusterfs https://github.com/sdague/devstack-plugins glusterfs
+  enable_plugin ec2api git://git.openstack.org/stackforge/ec2api
 
 Hypervisor
 ==========

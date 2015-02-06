@@ -46,8 +46,8 @@ Q: I'd like to help!
     `git.openstack.org <https://git.openstack.org/cgit/openstack-dev/devstack>`__
     and bug reports go to
     `LaunchPad <http://bugs.launchpad.net/devstack/>`__. Contributions
-    follow the usual process as described in the `OpenStack
-    wiki <http://wiki.openstack.org/HowToContribute>`__. This Sphinx
+    follow the usual process as described in the `developer
+    guide <http://docs.openstack.org/infra/manual/developers.html>`__. This Sphinx
     documentation is housed in the doc directory.
 Q: Why not use packages?
     A: Unlike packages, DevStack leaves your cloud ready to develop -
@@ -70,6 +70,18 @@ Q: What about Fedora/RHEL/CentOS?
 Q: Are there any differences between Ubuntu and Fedora support?
     A: Neutron is not fully supported prior to Fedora 18 due lack of
     OpenVSwitch packages.
+Q: Why can't I use another shell?
+    A: DevStack now uses some specific bash-ism that require Bash 4, such
+    as associative arrays. Simple compatibility patches have been accepted
+    in the past when they are not complex, at this point no additional
+    compatibility patches will be considered except for shells matching
+    the array functionality as it is very ingrained in the repo and project
+    management.
+Q: But, but, can't I test on OS/X?
+   A: Yes, even you, core developer who complained about this, needs to
+   install bash 4 via homebrew to keep running tests on OS/X.  Get a Real
+   Operating System.   (For most of you who don't know, I am refering to
+   myself.)
 
 Operation and Configuration
 ===========================
