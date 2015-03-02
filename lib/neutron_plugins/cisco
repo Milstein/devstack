@@ -934,7 +934,7 @@ function neutron_plugin_configure_service {
     inicomment $cisco_cfg_file CISCO_TEST host
     for subplugin in ${Q_CISCO_PLUGIN_SUBPLUGINS[@]}; do
         case $subplugin in
-            n1kv) iniset $cisco_cfg_file CISCO_PLUGINS vswitch_plugin neutron.plugins.cisco.n1kv.n1kv_neutron_plugin.N1kvNeutronPluginV2;;
+            n1kv) iniset $cisco_cfg_file CISCO_PLUGINS vswitch_plugin networking_cisco.plugins.cisco.n1kv.n1kv_neutron_plugin.N1kvNeutronPluginV2;;
             *) die $LINENO "Unsupported cisco subplugin: $subplugin";;
         esac
     done
