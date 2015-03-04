@@ -634,6 +634,16 @@ function init_neutron {
     recreate_database $Q_DB_NAME utf8
     # Run Neutron db migrations
     $NEUTRON_BIN_DIR/neutron-db-manage --config-file $NEUTRON_CONF --config-file /$Q_PLUGIN_CONF_FILE upgrade head
+		for svc in fwaas lbaas vpnaas; do
+        if [ "$svc" = "vpnaas" ]; then
+            q_svc="q-vpn"
+        else
+            q_svc="q-$svc"
+        fi
+        if is_service_enabled $q_svc; then
+            $NEUTRON_BIN_DIR/neutron-db-manage --service $svc --config-file $NEUTRON_CONF --config-file /$Q_PLUGIN_CONF_FILE upgrade head
+        fi
+    done
 }
 
 # install_neutron() - Collect source and prepare
@@ -998,6 +1008,9 @@ function _configure_neutron_metering {
 }
 
 function _configure_neutron_fwaas {
+		if [ -f $NEUTRON_FWAAS_DIR/etc/neutron_fwaas.conf ]; then
+        cp $NEUTRON_FWAAS_DIR/etc/neutron_fwaas.conf $NEUTRON_CONF_DIR
+    fi
     neutron_fwaas_configure_common
     neutron_fwaas_configure_driver
 }
