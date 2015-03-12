@@ -43,19 +43,11 @@ REGION_NAME=${REGION_NAME:-RegionOne}
 #  enable_service q-meta
 #  # Optional, to enable tempest configuration as part of devstack
 #  enable_service tempest
-function isset {
-    local nounset=$(set +o | grep nounset)
-    set +o nounset
-    [[ -n "${!1+x}" ]]
-    result=$?
-    $nounset
-    return $result
-}
 
 # this allows us to pass ENABLED_SERVICES
 if ! isset ENABLED_SERVICES ; then
     # core compute (glance / keystone / nova (+ nova-network))
-    ENABLED_SERVICES=g-api,g-reg,key,n-api,n-crt,n-obj,n-cpu,n-net,n-cond,n-sch,n-xvnc,n-cauth
+    ENABLED_SERVICES=g-api,g-reg,key,n-api,n-crt,n-obj,n-cpu,n-net,n-cond,n-sch,n-novnc,n-xvnc,n-cauth
     # cinder
     ENABLED_SERVICES+=,c-sch,c-api,c-vol
     # heat
@@ -112,9 +104,14 @@ elif [[ -f $RC_DIR/.localrc.auto ]]; then
     source $RC_DIR/.localrc.auto
 fi
 
+# Configure wheel cache location
+export WHEELHOUSE=${WHEELHOUSE:-$DEST/.wheelhouse}
+export PIP_WHEEL_DIR=${PIP_WHEEL_DIR:-$WHEELHOUSE}
+export PIP_FIND_LINKS=${PIP_FIND_LINKS:-file://$WHEELHOUSE}
+
 # This can be used to turn database query logging on and off
 # (currently only implemented for MySQL backend)
-DATABASE_QUERY_LOGGING=$(trueorfalse True DATABASE_QUERY_LOGGING)
+DATABASE_QUERY_LOGGING=$(trueorfalse False DATABASE_QUERY_LOGGING)
 
 # Set a timeout for git operations.  If git is still running when the
 # timeout expires, the command will be retried up to 3 times.  This is
@@ -164,7 +161,7 @@ GIT_BASE=${GIT_BASE:-git://git.openstack.org}
 #
 ##############
 
-# metering service
+# telemetry service
 CEILOMETER_REPO=${CEILOMETER_REPO:-${GIT_BASE}/openstack/ceilometer.git}
 CEILOMETER_BRANCH=${CEILOMETER_BRANCH:-master}
 
@@ -309,6 +306,10 @@ GITDIR["python-openstackclient"]=$DEST/python-openstackclient
 GITREPO["cliff"]=${CLIFF_REPO:-${GIT_BASE}/openstack/cliff.git}
 GITBRANCH["cliff"]=${CLIFF_BRANCH:-master}
 
+# debtcollector deprecation framework/helpers
+GITREPO["debtcollector"]=${DEBTCOLLECTOR_REPO:-${GIT_BASE}/openstack/debtcollector.git}
+GITBRANCH["debtcollector"]=${DEBTCOLLECTOR_BRANCH:-master}
+
 # oslo.concurrency
 GITREPO["oslo.concurrency"]=${OSLOCON_REPO:-${GIT_BASE}/openstack/oslo.concurrency.git}
 GITBRANCH["oslo.concurrency"]=${OSLOCON_BRANCH:-master}
@@ -341,6 +342,10 @@ GITBRANCH["oslo.messaging"]=${OSLOMSG_BRANCH:-master}
 GITREPO["oslo.middleware"]=${OSLOMID_REPO:-${GIT_BASE}/openstack/oslo.middleware.git}
 GITBRANCH["oslo.middleware"]=${OSLOMID_BRANCH:-master}
 
+# oslo.policy
+GITREPO["oslo.policy"]=${OSLOPOLICY_REPO:-${GIT_BASE}/openstack/oslo.policy.git}
+GITBRANCH["oslo.policy"]=${OSLOPOLICY_BRANCH:-master}
+
 # oslo.rootwrap
 GITREPO["oslo.rootwrap"]=${OSLORWRAP_REPO:-${GIT_BASE}/openstack/oslo.rootwrap.git}
 GITBRANCH["oslo.rootwrap"]=${OSLORWRAP_BRANCH:-master}
@@ -352,6 +357,10 @@ GITBRANCH["oslo.serialization"]=${OSLOSERIALIZATION_BRANCH:-master}
 # oslo.utils
 GITREPO["oslo.utils"]=${OSLOUTILS_REPO:-${GIT_BASE}/openstack/oslo.utils.git}
 GITBRANCH["oslo.utils"]=${OSLOUTILS_BRANCH:-master}
+
+# oslo.versionedobjects
+GITREPO["oslo.versionedobjects"]=${OSLOVERSIONEDOBJECTS_REPO:-${GIT_BASE}/openstack/oslo.versionedobjects.git}
+GITBRANCH["oslo.versionedobjects"]=${OSLOVERSIONEDOBJECTS_BRANCH:-master}
 
 # oslo.vmware
 GITREPO["oslo.vmware"]=${OSLOVMWARE_REPO:-${GIT_BASE}/openstack/oslo.vmware.git}
@@ -407,16 +416,16 @@ GITBRANCH["keystonemiddleware"]=${KEYSTONEMIDDLEWARE_BRANCH:-master}
 SWIFT3_REPO=${SWIFT3_REPO:-${GIT_BASE}/stackforge/swift3.git}
 SWIFT3_BRANCH=${SWIFT3_BRANCH:-master}
 
+# ceilometer middleware
+GITREPO["ceilometermiddleware"]=${CEILOMETERMIDDLEWARE_REPO:-${GIT_BASE}/openstack/ceilometermiddleware.git}
+GITBRANCH["ceilometermiddleware"]=${CEILOMETERMIDDLEWARE_BRANCH:-master}
+
 
 ##################
 #
-#  TripleO Components
+#  TripleO / Heat Agent Components
 #
 ##################
-
-# diskimage-builder
-DIB_REPO=${DIB_REPO:-${GIT_BASE}/openstack/diskimage-builder.git}
-DIB_BRANCH=${DIB_BRANCH:-master}
 
 # os-apply-config configuration template tool
 OAC_REPO=${OAC_REPO:-${GIT_BASE}/openstack/os-apply-config.git}
@@ -429,10 +438,6 @@ OCC_BRANCH=${OCC_BRANCH:-master}
 # os-refresh-config configuration run-parts tool
 ORC_REPO=${ORC_REPO:-${GIT_BASE}/openstack/os-refresh-config.git}
 ORC_BRANCH=${ORC_BRANCH:-master}
-
-# Tripleo elements for diskimage-builder images
-TIE_REPO=${TIE_REPO:-${GIT_BASE}/openstack/tripleo-image-elements.git}
-TIE_BRANCH=${TIE_BRANCH:-master}
 
 #################
 #
@@ -449,10 +454,6 @@ IRONIC_PYTHON_AGENT_BRANCH=${IRONIC_PYTHON_AGENT_BRANCH:-master}
 # a websockets/html5 or flash powered VNC console for vm instances
 NOVNC_REPO=${NOVNC_REPO:-https://github.com/kanaka/noVNC.git}
 NOVNC_BRANCH=${NOVNC_BRANCH:-master}
-
-# ryu service
-RYU_REPO=${RYU_REPO:-https://github.com/osrg/ryu.git}
-RYU_BRANCH=${RYU_BRANCH:-master}
 
 # a websockets/html5 or flash powered SPICE console for vm instances
 SPICE_REPO=${SPICE_REPO:-http://anongit.freedesktop.org/git/spice/spice-html5.git}

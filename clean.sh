@@ -76,6 +76,8 @@ fi
 # ==========
 
 # Phase: clean
+run_phase clean
+
 if [[ -d $TOP_DIR/extras.d ]]; then
     for i in $TOP_DIR/extras.d/*.sh; do
         [[ -r $i ]] && source $i clean
@@ -118,6 +120,10 @@ sudo rm -rf $DATA_DIR $LOGDIR $DEST/status
 if [[ -n "$SCREEN_LOGDIR" ]] && [[ -d "$SCREEN_LOGDIR" ]]; then
     sudo rm -rf $SCREEN_LOGDIR
 fi
+
+# Clean up venvs
+DIRS_TO_CLEAN="$WHEELHOUSE ${PROJECT_VENV[@]}"
+rm -rf $DIRS_TO_CLEAN
 
 # Clean up files
 

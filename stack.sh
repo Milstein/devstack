@@ -94,6 +94,9 @@ source $TOP_DIR/functions
 # Import config functions
 source $TOP_DIR/lib/config
 
+# Import 'public' stack.sh functions
+source $TOP_DIR/lib/stack
+
 # Determine what system we are running on.  This provides ``os_VENDOR``,
 # ``os_RELEASE``, ``os_UPDATE``, ``os_PACKAGE``, ``os_CODENAME``
 # and ``DISTRO``
@@ -250,8 +253,10 @@ failovermethod=priority
 enabled=0
 gpgcheck=0
 EOF
-    # bare yum call due to --enablerepo
-    sudo yum --enablerepo=epel-bootstrap -y install epel-release || \
+    # Enable a bootstrap repo.  It is removed after finishing
+    # the epel-release installation.
+    sudo yum-config-manager --enable epel-bootstrap
+    yum_install epel-release || \
         die $LINENO "Error installing EPEL repo, cannot continue"
     # epel rpm has installed it's version
     sudo rm -f /etc/yum.repos.d/epel-bootstrap.repo
@@ -604,7 +609,7 @@ fi
 
 # Keystone
 
-if is_service_enabled key; then
+if is_service_enabled keystone; then
     # The ``SERVICE_TOKEN`` is used to bootstrap the Keystone database.  It is
     # just a string and is not a 'real' Keystone token.
     read_password SERVICE_TOKEN "ENTER A SERVICE_TOKEN TO USE FOR THE SERVICE ADMIN TOKEN."
@@ -674,6 +679,15 @@ fi
 source $TOP_DIR/tools/fixup_stuff.sh
 
 
+# Virtual Environment
+# -------------------
+
+# Pre-build some problematic wheels
+if [[ -n ${WHEELHOUSE:-} && ! -d ${WHEELHOUSE:-} ]]; then
+    source $TOP_DIR/tools/build_wheels.sh
+fi
+
+
 # Extras Pre-install
 # ------------------
 
@@ -719,24 +733,16 @@ fi
 # Install middleware
 install_keystonemiddleware
 
-# install the OpenStack client, needed for most setup commands
-if use_library_from_git "python-openstackclient"; then
-    git_clone_by_name "python-openstackclient"
-    setup_dev_lib "python-openstackclient"
-else
-    pip_install 'python-openstackclient>=1.0.2'
-fi
 
-
-if is_service_enabled key; then
+if is_service_enabled keystone; then
     if [ "$KEYSTONE_AUTH_HOST" == "$SERVICE_HOST" ]; then
-        install_keystone
+        stack_install_service keystone
         configure_keystone
     fi
 fi
 
 if is_service_enabled s-proxy; then
-    install_swift
+    stack_install_service swift
     configure_swift
 
     # swift3 middleware to provide S3 emulation to Swift
@@ -750,23 +756,23 @@ fi
 
 if is_service_enabled g-api n-api; then
     # image catalog service
-    install_glance
+    stack_install_service glance
     configure_glance
 fi
 
 if is_service_enabled cinder; then
-    install_cinder
+    stack_install_service cinder
     configure_cinder
 fi
 
 if is_service_enabled neutron; then
-    install_neutron
+    stack_install_service neutron
     install_neutron_third_party
 fi
 
 if is_service_enabled nova; then
     # compute service
-    install_nova
+    stack_install_service nova
     cleanup_nova
     configure_nova
 fi
@@ -775,19 +781,19 @@ if is_service_enabled horizon; then
     # django openstack_auth
     install_django_openstack_auth
     # dashboard
-    install_horizon
+    stack_install_service horizon
     configure_horizon
 fi
 
 if is_service_enabled ceilometer; then
     install_ceilometerclient
-    install_ceilometer
+    stack_install_service ceilometer
     echo_summary "Configuring Ceilometer"
     configure_ceilometer
 fi
 
 if is_service_enabled heat; then
-    install_heat
+    stack_install_service heat
     install_heat_other
     cleanup_heat
     configure_heat
@@ -801,12 +807,21 @@ if is_service_enabled tls-proxy || [ "$USE_SSL" == "True" ]; then
     # don't be naive and add to existing line!
 fi
 
-
 # Extras Install
 # --------------
 
 # Phase: install
 run_phase stack install
+
+
+# install the OpenStack client, needed for most setup commands
+if use_library_from_git "python-openstackclient"; then
+    git_clone_by_name "python-openstackclient"
+    setup_dev_lib "python-openstackclient"
+else
+    pip_install 'python-openstackclient>=1.0.2'
+fi
+
 
 if [[ $TRACK_DEPENDS = True ]]; then
     $DEST/.venv/bin/pip freeze > $DEST/requires-post-pip
@@ -921,7 +936,7 @@ start_dstat
 # Keystone
 # --------
 
-if is_service_enabled key; then
+if is_service_enabled keystone; then
     echo_summary "Starting Keystone"
 
     if [ "$KEYSTONE_AUTH_HOST" == "$SERVICE_HOST" ]; then
@@ -1146,7 +1161,7 @@ if is_service_enabled g-reg; then
 fi
 
 # Create an access key and secret key for nova ec2 register image
-if is_service_enabled key && is_service_enabled swift3 && is_service_enabled nova; then
+if is_service_enabled keystone && is_service_enabled swift3 && is_service_enabled nova; then
     eval $(openstack ec2 credentials create --user nova --project $SERVICE_TENANT_NAME -f shell -c access -c secret)
     iniset $NOVA_CONF DEFAULT s3_access_key "$access"
     iniset $NOVA_CONF DEFAULT s3_secret_key "$secret"
@@ -1216,9 +1231,9 @@ if is_service_enabled heat; then
     init_heat
     echo_summary "Starting Heat"
     start_heat
-    if [ "$HEAT_CREATE_TEST_IMAGE" = "True" ]; then
-        echo_summary "Building Heat functional test image"
-        build_heat_functional_test_image
+    if [ "$HEAT_BUILD_PIP_MIRROR" = "True" ]; then
+        echo_summary "Building Heat pip mirror"
+        build_heat_pip_mirror
     fi
 fi
 
@@ -1230,7 +1245,7 @@ fi
 # This step also creates certificates for tenants and users,
 # which is helpful in image bundle steps.
 
-if is_service_enabled nova && is_service_enabled key; then
+if is_service_enabled nova && is_service_enabled keystone; then
     USERRC_PARAMS="-PA --target-dir $TOP_DIR/accrc"
 
     if [ -f $SSL_BUNDLE_FILE ]; then
@@ -1289,6 +1304,13 @@ fi
 service_check
 
 
+# Bash completion
+# ===============
+
+# Prepare bash completion for OSC
+openstack complete | sudo tee /etc/bash_completion.d/osc.bash_completion > /dev/null
+
+
 # Fin
 # ===
 
@@ -1318,7 +1340,7 @@ if is_service_enabled horizon; then
 fi
 
 # If Keystone is present you can point ``nova`` cli to this server
-if is_service_enabled key; then
+if is_service_enabled keystone; then
     echo "Keystone is serving at $KEYSTONE_SERVICE_URI/v2.0/"
     echo "Examples on using novaclient command line is in exercise.sh"
     echo "The default users are: admin and demo"

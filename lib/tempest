@@ -63,6 +63,12 @@ BUILD_INTERVAL=1
 BUILD_TIMEOUT=${BUILD_TIMEOUT:-196}
 
 
+# This must be False on stable branches, as master tempest
+# deps do not match stable branch deps. Set this to True to
+# have tempest installed in devstack by default.
+INSTALL_TEMPEST=${INSTALL_TEMPEST:-"False"}
+
+
 BOTO_MATERIALS_PATH="$FILES/images/s3-materials/cirros-${CIRROS_VERSION}"
 BOTO_CONF=/etc/boto.cfg
 
@@ -94,8 +100,13 @@ function remove_disabled_extensions {
 
 # configure_tempest() - Set config files, create data dirs, etc
 function configure_tempest {
-    # install testr since its used to process tempest logs
-    pip_install `grep -h testrepository $REQUIREMENTS_DIR/global-requirements.txt | cut -d\# -f1`
+    if [[ "$INSTALL_TEMPEST" == "True" ]]; then
+        setup_develop $TEMPEST_DIR
+    else
+        # install testr since its used to process tempest logs
+        pip_install $(get_from_global_requirements testrepository)
+    fi
+
     local image_lines
     local images
     local num_images
@@ -516,14 +527,23 @@ function install_tempest_lib {
     if use_library_from_git "tempest-lib"; then
         git_clone_by_name "tempest-lib"
         setup_dev_lib "tempest-lib"
+        # NOTE(mtreinish) For testing tempest-lib from git with tempest we need
+        # put the git version of tempest-lib in the tempest job's tox venv
+        export PIP_VIRTUAL_ENV=${PROJECT_VENV["tempest"]}
+        setup_dev_lib "tempest-lib"
+        unset PIP_VIRTUAL_ENV
     fi
 }
 
 # install_tempest() - Collect source and prepare
 function install_tempest {
-    install_tempest_lib
     git_clone $TEMPEST_REPO $TEMPEST_DIR $TEMPEST_BRANCH
     pip_install tox
+    pushd $TEMPEST_DIR
+    tox --notest -efull
+    PROJECT_VENV["tempest"]=${TEMPEST_DIR}/.tox/full
+    install_tempest_lib
+    popd
 }
 
 # init_tempest() - Initialize ec2 images

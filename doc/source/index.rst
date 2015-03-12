@@ -67,6 +67,7 @@ Walk through various setups used by stackers
    guides/multinode-lab
    guides/neutron
    guides/devstack-with-nested-kvm
+   guides/nova
 
 All-In-One Single VM
 --------------------
@@ -101,6 +102,11 @@ DevStack with KVM-based Nested Virtualization
 Procedure to setup :doc:`DevStack with KVM-based Nested Virtualization
 <guides/devstack-with-nested-kvm>`. With this setup, Nova instances
 will be more performant than with plain QEMU emulation.
+
+Nova and devstack
+--------------------------------
+
+Guide to working with nova features :doc:`Nova and devstack <guides/nova>`.
 
 DevStack Documentation
 ======================
@@ -152,7 +158,6 @@ Scripts
 * `lib/cinder <lib/cinder.html>`__
 * `lib/config <lib/config.html>`__
 * `lib/database <lib/database.html>`__
-* `lib/dib <lib/dib.html>`__
 * `lib/dstat <lib/dstat.html>`__
 * `lib/glance <lib/glance.html>`__
 * `lib/heat <lib/heat.html>`__
@@ -175,7 +180,6 @@ Scripts
 * `clean.sh <clean.sh.html>`__
 * `run\_tests.sh <run_tests.sh.html>`__
 
-* `extras.d/40-dib.sh <extras.d/40-dib.sh.html>`__
 * `extras.d/50-ironic.sh <extras.d/50-ironic.sh.html>`__
 * `extras.d/60-ceph.sh <extras.d/60-ceph.sh.html>`__
 * `extras.d/70-sahara.sh <extras.d/70-sahara.sh.html>`__

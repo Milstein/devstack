@@ -44,14 +44,23 @@ function download_elasticsearch {
 
 function configure_elasticsearch {
     # currently a no op
-    ::
+    :
+}
+
+function _check_elasticsearch_ready {
+    # poll elasticsearch to see if it's started
+    if ! wait_for_service 30 http://localhost:9200; then
+        die $LINENO "Maximum timeout reached. Could not connect to ElasticSearch"
+    fi
 }
 
 function start_elasticsearch {
     if is_ubuntu; then
         sudo /etc/init.d/elasticsearch start
+        _check_elasticsearch_ready
     elif is_fedora; then
         sudo /bin/systemctl start elasticsearch.service
+        _check_elasticsearch_ready
     else
         echo "Unsupported architecture...can not start elasticsearch."
     fi
@@ -78,7 +87,11 @@ function install_elasticsearch {
         sudo dpkg -i ${FILES}/elasticsearch-${ELASTICSEARCH_VERSION}.deb
         sudo update-rc.d elasticsearch defaults 95 10
     elif is_fedora; then
-        is_package_installed java-1.7.0-openjdk-headless || install_package java-1.7.0-openjdk-headless
+        if [[ "$os_RELEASE" -ge "21" ]]; then
+            is_package_installed java-1.8.0-openjdk-headless || install_package java-1.8.0-openjdk-headless
+        else
+            is_package_installed java-1.7.0-openjdk-headless || install_package java-1.7.0-openjdk-headless
+        fi
         yum_install ${FILES}/elasticsearch-${ELASTICSEARCH_VERSION}.noarch.rpm
         sudo /bin/systemctl daemon-reload
         sudo /bin/systemctl enable elasticsearch.service
