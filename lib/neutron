@@ -141,7 +141,7 @@ Q_META_CONF_FILE=$NEUTRON_CONF_DIR/metadata_agent.ini
 # Default name for Neutron database
 Q_DB_NAME=${Q_DB_NAME:-neutron}
 # Default Neutron Plugin
-Q_PLUGIN=${Q_PLUGIN:-csr1kv_openvswitch}
+Q_PLUGIN=${Q_PLUGIN:-ml2}
 # Default Neutron Port
 Q_PORT=${Q_PORT:-9696}
 # Default Neutron Internal Port when using TLS proxy
@@ -293,7 +293,7 @@ TENANT_VLAN_RANGE=${TENANT_VLAN_RANGE:-}
 # Example: ``PHYSICAL_NETWORK=default``
 PHYSICAL_NETWORK=${PHYSICAL_NETWORK:-}
 
-    # With the csr1kv_openvswitch plugin, if using VLANs for tenant networks,
+# With the csr1kv_openvswitch plugin, if using VLANs for tenant networks,
 # or if using flat or VLAN provider networks, set in ``localrc`` to
 # the name of the OVS bridge to use for the physical network. The
 # bridge will be created if it does not already exist, but a
@@ -552,8 +552,8 @@ function create_neutron_accounts {
 }
 
 function setup_for_csr1kv {
-    if [[ "$Q_PLUGIN" == "csr1kv_openvswitch" ]]; then
-	    plugin=ovs
+    if [[ "$Q_PLUGIN" == "ml2" ]]; then
+	    plugin=ml2
     elif [[ "$Q_PLUGIN" == "cisco" || "${Q_CISCO_PLUGIN_SUBPLUGINS[0]}" == "n1kv" ]]; then
 	    plugin=n1kv
     else
@@ -1088,12 +1088,7 @@ function _configure_neutron_service {
     Q_POLICY_FILE=$NEUTRON_CONF_DIR/policy.json
 
     cp $NEUTRON_DIR/etc/api-paste.ini $Q_API_PASTE_FILE
-    if [[ "$Q_PLUGIN" == "csr1kv_openvswitch" ]]; then
-        cp $NEUTRON_DIR/neutron/plugins/csr1kv_openvswitch/copy_to/neutron_etc_dir/policy.json $Q_POLICY_FILE
-    else
-        cp $NEUTRON_DIR/etc/policy.json $Q_POLICY_FILE
-    fi
-
+    cp $NEUTRON_DIR/etc/policy.json $Q_POLICY_FILE
 
     # allow neutron user to administer neutron to match neutron account
     sed -i 's/"context_is_admin":  "role:admin"/"context_is_admin":  "role:admin or user_name:neutron"/g' $Q_POLICY_FILE

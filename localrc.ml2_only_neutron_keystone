@@ -6,14 +6,14 @@ OFFLINE=False
 # Setting RECLONE=yes will make stach.sh freshen each repo on each run.
 RECLONE=yes
 
-GIT_BASE=${GIT_BASE:-https://github.com}
-NEUTRON_REPO=${GIT_BASE}/CiscoSystems/neutron.git
-NEUTRON_BRANCH=bobmel/device_manager_plugin
-
 # Destination path for installation of the OpenStack components.
 # There is no need to specify it unless you want the code in
 # some particular location (like in a directory shared by all VMs).
-#DEST=/opt/stack
+DEST=/opt/stack
+LOGDIR=$TOP_DIR/logs
+SCREEN_LOGDIR=$DEST/logs
+LOGFILE=~/devstack/stack.sh.log
+
 
 # Running DevStack with multiple hosts requires a custom localrc file 
 # for each host. The master is the same as a single host in installation
@@ -47,6 +47,8 @@ disable_service h-api-cw
 disable_service horizon
 
 disable_service tempest
+
+Q_CISCO_CONFIGURE_NOVA_AND_GLANCE=False
 
 enable_service neutron
 enable_service q-svc
@@ -107,3 +109,18 @@ SERVICE_TOKEN=$our_pw
 SERVICE_PASSWORD=$our_pw
 ADMIN_PASSWORD=$our_pw
 
+# Global Openstack requirements
+#REQUIREMENTS_REPO=${GIT_BASE}/CiscoSystems/requirements.git
+#REQUIREMENTS_BRANCH=csr1kv_for_routing_juno
+
+# Neutron service
+NEUTRON_REPO=${GIT_BASE}/CiscoSystems/neutron.git
+NEUTRON_BRANCH=bobmel/device_manager_plugin
+
+# Neutron client
+NEUTRONCLIENT_REPO=${GIT_BASE}/CiscoSystems/python-neutronclient.git
+NEUTRONCLIENT_BRANCH=bobmel/device_manager_plugin
+
+# Horizon
+#HORIZON_REPO=${GIT_BASE}/CiscoSystems/horizon.git
+#HORIZON_BRANCH=

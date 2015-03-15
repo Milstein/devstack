@@ -54,7 +54,7 @@ function get_port_profile_id() {
 if [ "$plugin" == "n1kv" ]; then
     get_port_profile_id ${n1kvPortPolicyProfileNames[0]}
     extra_port_params="--n1kv:profile_id $pProfileId"
-elif [ "$plugin" == "ovs" ]; then
+elif [ "$plugin" == "ml2" ]; then
     nw=`$osn net-show $osnMgmtNwName`
     mgmtVLAN=`echo "$nw" | awk '/provider:segmentation_id/ { print $4; }'`
     if [ -z ${mgmtVLAN+x} ] || [ "$mgmtVLAN" == "" ]; then

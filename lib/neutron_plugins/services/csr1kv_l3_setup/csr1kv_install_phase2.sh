@@ -34,13 +34,17 @@ function trueorfalse {
 
 if [[ ! -z $localrc && -f $localrc ]]; then
     eval $(grep ^Q_CISCO_CREATE_TEST_NETWORKS= $localrc)
+    eval $(grep ^Q_CISCO_CONFIGURE_NOVA_AND_GLANCE= $localrc)
 fi
 CREATE_TEST_NETWORKS=$(trueorfalse "False" $Q_CISCO_CREATE_TEST_NETWORKS)
+CONFIGURE_NOVA_AND_GLANCE=$(trueorfalse "True" $Q_CISCO_CREATE_TEST_NETWORKS)
 
 source ~/devstack/openrc $osn L3AdminTenant
 
-echo "***************** Setting up Nova & Glance for CSR1kv *****************"
-./setup_nova_and_glance_for_csr1kv_l3.sh $osn $plugin $localrc $mysql_user $mysql_password
+if  [[ "$CONFIGURE_NOVA_AND_GLANCE" == "True"  ]]; then
+    echo "***************** Setting up Nova & Glance for CSR1kv *****************"
+    ./setup_nova_and_glance_for_csr1kv_l3.sh $osn $localrc $mysql_user $mysql_password
+fi
 
 echo "***************** Setting up Neutron for CSR1kv *****************"
 ./setup_neutron_for_csr1kv_l3.sh $osn $plugin $localrc

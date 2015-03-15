@@ -7,7 +7,7 @@
 # release >=Havana and release <=Grizzly, respectively.
 osn=${1:-neutron}
 plugin=${2:-n1kv}
-#plugin=ovs
+#plugin=ml2
 
 osnExtNwName=test_extnet1
 osnExtNwLen=24
@@ -35,7 +35,7 @@ function get_port_profile_id() {
 if [ "$plugin" == "n1kv" ]; then
     get_port_profile_id ${n1kvPortPolicyProfileNames[0]}
     extra_port_params="--n1kv:profile_id $pProfileId"
-elif [ "$plugin" == "ovs" ]; then
+elif [ "$plugin" == "ml2" ]; then
     nw=`$osn net-show $osnExtNwName`
     extNwVLAN=`echo "$nw" | awk '/provider:segmentation_id/ { print $4; }'`
     if [ -z ${extNwVLAN+x} ] || [ "$extNwVLAN" == "" ]; then
@@ -75,7 +75,7 @@ sudo ip link set $vethHostSideName up
 sudo ip link set $vethBridgeSideName up
 sudo ip -4 addr add $hostportIP/$osnExtNwLen dev $vethHostSideName
 
-if [ "$plugin" == "ovs" ]; then
+if [ "$plugin" == "ml2" ]; then
     extra_ovs_params="tag=$extNwVLAN"
 fi
 sudo ovs-vsctl -- --may-exist add-port br-int $vethBridgeSideName $extra_ovs_params -- set interface $vethBridgeSideName external-ids:iface-id=$portId -- set interface $vethBridgeSideName external-ids:attached-mac=$macAddr -- set interface $vethBridgeSideName external-ids:iface-status=active

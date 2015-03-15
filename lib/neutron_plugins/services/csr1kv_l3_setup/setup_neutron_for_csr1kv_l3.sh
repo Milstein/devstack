@@ -7,7 +7,7 @@
 # release >=Havana and release <=Grizzly, respectively.
 osn=${1:-neutron}
 plugin=${2:-n1kv}
-#plugin=ovs
+#plugin=ml2
 localrc=$3
 
 if [[ ! -z $localrc && -f $localrc ]]; then

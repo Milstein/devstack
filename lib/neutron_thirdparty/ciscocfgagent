@@ -31,6 +31,8 @@ function configure_ciscocfgagent {
 function init_ciscocfgagent {
     if [[ "$Q_PLUGIN" == "csr1kv_openvswitch" ]]; then
 	    plugin=ovs
+    elif [[ "$Q_PLUGIN" == "ml2" ]]; then
+	    plugin=ml2
     elif [[ "$Q_PLUGIN" == "cisco" || "${Q_CISCO_PLUGIN_SUBPLUGINS[0]}" == "n1kv" ]]; then
 	    plugin=n1kv
     else

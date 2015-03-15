@@ -3,14 +3,12 @@
 # Default values
 # --------------
 # adminUser is same as name of Openstack network service,
-# i.e., it should be either 'neutron' or 'quantum', for
-# release >=Havana and release <=Grizzly, respectively.
+# i.e., it should be 'neutron'.
 adminUser=${1:-neutron}
 osn=$adminUser
-plugin=${2:-n1kv}
-localrc=$3
-mysql_user=$4
-mysql_password=$5
+localrc=$2
+mysql_user=$3
+mysql_password=$4
 
 
 if [[ -n $mysql_user && -n $mysql_password ]]; then

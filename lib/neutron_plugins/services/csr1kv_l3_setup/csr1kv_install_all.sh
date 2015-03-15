@@ -6,5 +6,5 @@ echo "***************** Running phase 1 setup *****************"
 ./csr1kv_install_phase1.sh
 
 echo "***************** Running phase 2 setup *****************"
-./csr1kv_install_phase1.sh
+./csr1kv_install_phase2.sh
 

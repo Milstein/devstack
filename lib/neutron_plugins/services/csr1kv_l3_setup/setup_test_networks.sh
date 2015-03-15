@@ -7,7 +7,7 @@
 # release >=Havana and release <=Grizzly, respectively.
 osn=${1:-neutron}
 plugin=${2:-n1kv}
-#plugin=ovs
+#plugin=ml2
 
 n1kvPhyNwNames=(osn_phy_network osn_phy_network)
 n1kvNwProfileNames=(test_net_profile1 test_net_profile2)
