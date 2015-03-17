@@ -11,9 +11,13 @@ function neutron_cisco_router_configure_common() {
     Q_L3_ENABLED=True
     Q_L3_ROUTER_PER_TENANT=True
 
-    # Temporarily adding device manager to service plugin list here to ensure proper ordering
-    Q_CISCO_DEVICE_MANAGER_PLUGIN=neutron.plugins.cisco.service_plugins.cisco_device_manager_plugin.CiscoDeviceManagerPlugin
-    _neutron_service_plugin_class_add $Q_CISCO_DEVICE_MANAGER_PLUGIN
+    if [[ $Q_PLUGIN == "ml2" ]]; then 
+        # Temporarily adding device manager to service plugin list here to ensure proper ordering.
+        # If plugin is ml2 we instead add device manager by specifying it as the L3 router plugin 
+        # that ml2 devstack script configures.
+        Q_CISCO_DEVICE_MANAGER_PLUGIN=neutron.plugins.cisco.service_plugins.cisco_device_manager_plugin.CiscoDeviceManagerPlugin
+        _neutron_service_plugin_class_add $Q_CISCO_DEVICE_MANAGER_PLUGIN
+    fi
 
     _neutron_service_plugin_class_add $CISCO_ROUTER_PLUGIN
 
@@ -28,7 +32,6 @@ function neutron_cisco_router_configure_common() {
     if [[ -f $CISCO_INJECT_FILE ]]; then
         cat $CISCO_INJECT_FILE >> $Q_CISCO_ROUTER_PLUGIN_CONF_FILE
     fi 
-
  }
 
 #function neutron_cisco_router_configure_driver() {

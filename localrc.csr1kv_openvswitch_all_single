@@ -53,8 +53,6 @@ Q_PLUGIN=csr1kv_openvswitch
 #Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch
 #Q_ML2_TENANT_NETWORK_TYPE=local
 
-Q_CISCO_ROUTER_PLUGIN=yes
-
 # My single node DevStackVM has NATed access to the external world. 
 # Its default GW is 172.16.6.2 (provided by VMware Fusion), the VM host 
 # (my MBP) has IP address 172.16.6.1 (on vmnet8).
